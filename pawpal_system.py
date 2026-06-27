@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from datetime import time, timedelta, date
 from enum import Enum
-from typing import List
+from typing import List, Dict, Optional
 
 
 class PetClassification(Enum):
@@ -16,6 +16,8 @@ class Owner:
         self._name = name
         self._available_hours_start = available_hours_start
         self._available_hours_end = available_hours_end
+        self._pets: List['Pet'] = []
+        self._schedules: Dict[date, 'Schedule'] = {}
 
     def get_name(self) -> str:
         return self._name
@@ -35,13 +37,31 @@ class Owner:
     def set_available_hours_end(self, available_hours_end: time) -> None:
         self._available_hours_end = available_hours_end
 
+    def get_pets(self) -> List['Pet']:
+        return self._pets
+
+    def add_pet(self, pet: 'Pet') -> None:
+        self._pets.append(pet)
+
+    def get_schedules(self) -> Dict[date, 'Schedule']:
+        return self._schedules
+
+    def get_schedule(self, target_date: date) -> Optional['Schedule']:
+        return self._schedules.get(target_date)
+
+    def add_schedule(self, schedule: 'Schedule') -> None:
+        self._schedules[schedule.get_date()] = schedule
+
 
 class RecurrencePattern(ABC):
-    pass
+    @abstractmethod
+    def applies_to_date(self, target_date: date) -> bool:
+        pass
 
 
 class DailyPattern(RecurrencePattern):
-    pass
+    def applies_to_date(self, target_date: date) -> bool:
+        return True
 
 
 class WeeklyPattern(RecurrencePattern):
@@ -54,6 +74,9 @@ class WeeklyPattern(RecurrencePattern):
     def set_days(self, days: List[int]) -> None:
         self._days = days
 
+    def applies_to_date(self, target_date: date) -> bool:
+        return target_date.weekday() in self._days
+
 
 class MonthlyPattern(RecurrencePattern):
     def __init__(self, day_of_month: List[int]):
@@ -64,6 +87,9 @@ class MonthlyPattern(RecurrencePattern):
 
     def set_day_of_month(self, day_of_month: List[int]) -> None:
         self._day_of_month = day_of_month
+
+    def applies_to_date(self, target_date: date) -> bool:
+        return target_date.day in self._day_of_month
 
 
 class Task:
@@ -105,7 +131,7 @@ class Task:
         self._preceding_tasks.append(task)
 
     def is_necessary_for_date(self, target_date: date) -> bool:
-        pass
+        return self._recurrence_pattern.applies_to_date(target_date)
 
 
 class Pet:
@@ -247,4 +273,13 @@ class Scheduler:
         return cls._instance
 
     def generate_schedule(self, owner: Owner, target_date: date) -> Schedule:
-        pass
+        schedule = Schedule(target_date)
+
+        for pet in owner.get_pets():
+            for task in pet.get_tasks():
+                if task.is_necessary_for_date(target_date):
+                    block = TaskScheduleBlock(time(9, 0), task)
+                    schedule.add_block(block)
+
+        owner.add_schedule(schedule)
+        return schedule

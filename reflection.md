@@ -30,7 +30,17 @@ At a high level, an `Owner` has a collection of `Pets`, each with prioritized `T
 **b. Design changes**
 
 > Did your design change during implementation?
+
+The design didn't change dramatically.
+Conceptually it is the same, but there were a couple tweaks made.
+
 > If yes, describe at least one change and why you made it.
+
+One change that was added were missing relationship representations.
+Those were not added from the UML diagram during the initial AI-built skeleton.
+This second pass allowed Claude to catch that they were missing, letting it more accurately build the desired model.
+
+Another change was a migration in logic. Claude recommended having `applies_to_date(target_date)` logic directly on the `RecurrencePattern`, which it then implemented.
 
 ---
 
