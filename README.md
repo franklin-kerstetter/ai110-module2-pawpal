@@ -163,6 +163,35 @@ Tasks for Buddy (3):
   Feed Buddy | MORNING (explicit: 06:00:00)
   Feed Buddy | MIDDAY (explicit: 12:30:00)
   Feed Buddy | EVENING (explicit: 17:30:00)
+
+================================================================================
+CONFLICT DETECTION DEMONSTRATION (Complex Schedule)
+================================================================================
+
+No scheduling conflicts detected.
+
+================================================================================
+CONFLICT DETECTION DEMONSTRATION (Conflicting Schedule)
+================================================================================
+
+Generating schedule with intentional overlapping tasks...
+
+================================================================================
+Schedule for Sunday, June 28, 2026
+================================================================================
+
+MORNING
+[ ] Morning Walk                   08:00 AM     (30m) | Max
+[ ] Grooming                       08:15 AM     (20m) | Max
+[ ] Vet Appointment                08:20 AM     (25m) | Bella
+--------------------------------------------------------------------------------
+Notes: Schedule with intentional conflicts for testing
+================================================================================
+
+✓ Successfully detected 3 conflict(s):
+  ⚠ Conflict: 'Morning Walk' (Max) and 'Grooming' (Max) overlap [same pet]
+  ⚠ Conflict: 'Morning Walk' (Max) and 'Vet Appointment' (Bella) overlap [different pets]
+  ⚠ Conflict: 'Grooming' (Max) and 'Vet Appointment' (Bella) overlap [different pets]
 ```
 
 ## 🧪 Testing PawPal+

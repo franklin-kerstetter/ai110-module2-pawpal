@@ -118,6 +118,70 @@ def generate_complex_testing_schedule(schedule_date: date) -> Schedule:
     return owner_2_schedule
 
 
+def generate_conflicting_testing_schedule(schedule_date: date) -> Schedule:
+    pet_5 = Pet(
+        name="Max",
+        classification=PetClassification.DOG,
+        age=2,
+        birthday=date(2024, 5, 10)
+    )
+
+    # Create task 1: Morning Walk
+    morning_task = Task(
+        name="Morning Walk",
+        duration=timedelta(minutes=30),
+        priority=2,
+        recurrence_pattern=DailyPattern(),
+        time_of_day=TimeOfDay.MORNING
+    )
+    pet_5.add_task(morning_task)
+
+    # Create task 2: Grooming (will overlap)
+    grooming_task = Task(
+        name="Grooming",
+        duration=timedelta(minutes=20),
+        priority=1,
+        recurrence_pattern=DailyPattern(),
+        time_of_day=TimeOfDay.MORNING
+    )
+    pet_5.add_task(grooming_task)
+
+    pet_6 = Pet(
+        name="Bella",
+        classification=PetClassification.CAT,
+        age=4,
+        birthday=date(2022, 8, 20)
+    )
+
+    # Create task 3: Vet Appointment (will overlap)
+    vet_task = Task(
+        name="Vet Appointment",
+        duration=timedelta(minutes=25),
+        priority=3,
+        recurrence_pattern=DailyPattern(),
+        time_of_day=TimeOfDay.MORNING
+    )
+    pet_6.add_task(vet_task)
+
+    # Create schedule with only conflict blocks
+    conflict_schedule = Schedule(schedule_date, "Schedule with intentional conflicts for testing")
+
+    # Add overlapping blocks
+    morning_block_start = datetime.combine(schedule_date, time(8, 0))
+    morning_walk_block = TaskScheduleBlock(morning_block_start, morning_task, "Morning walk (8:00-8:30)")
+    conflict_schedule.add_block(morning_walk_block)
+
+    grooming_start = datetime.combine(schedule_date, time(8, 15))
+    grooming_block = TaskScheduleBlock(grooming_start, grooming_task, "Grooming (8:15-8:35)")
+    conflict_schedule.add_block(grooming_block)
+
+    vet_start = datetime.combine(schedule_date, time(8, 20))
+    vet_block = TaskScheduleBlock(vet_start, vet_task, "Vet visit (8:20-8:45)")
+    conflict_schedule.add_block(vet_block)
+
+    return conflict_schedule
+
+
 # ================================================================================
 #
 # Start of the script execution
@@ -217,3 +281,42 @@ for task, pet in buddy_tasks:
     time_of_day = task.get_time_of_day().name
     explicit_time = f" (explicit: {task.get_start_time()})" if task.get_start_time() else ""
     print(f"  {task.get_name()} | {time_of_day}{explicit_time}")
+
+print("\n" + "="*80)
+print("CONFLICT DETECTION DEMONSTRATION (Complex Schedule)")
+print("="*80 + "\n")
+
+# Detect scheduling conflicts
+conflicts = scheduler.detect_schedule_conflicts(complex_schedule)
+if conflicts:
+    print(f"Detected {len(conflicts)} conflict(s):")
+    for conflict in conflicts:
+        print(f"  ⚠ {conflict}")
+else:
+    print("No scheduling conflicts detected.")
+
+
+# ================================================================================
+#
+# Conflicting Schedule Test (Intentional Overlaps)
+#
+# ================================================================================
+
+print("\n" + "="*80)
+print("CONFLICT DETECTION DEMONSTRATION (Conflicting Schedule)")
+print("="*80 + "\n")
+
+print("Generating schedule with intentional overlapping tasks...")
+conflict_schedule = generate_conflicting_testing_schedule(date.today())
+print(f"{conflict_schedule}")
+
+# Detect conflicts in the schedule with overlaps
+conflict_scheduler = Scheduler()
+detected_conflicts = conflict_scheduler.detect_schedule_conflicts(conflict_schedule)
+
+if detected_conflicts:
+    print(f"✓ Successfully detected {len(detected_conflicts)} conflict(s):")
+    for conflict in detected_conflicts:
+        print(f"  ⚠ {conflict}")
+else:
+    print("\nNo conflicts detected.")

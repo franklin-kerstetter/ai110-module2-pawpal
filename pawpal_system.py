@@ -488,6 +488,32 @@ class Scheduler:
         """Return schedule blocks filtered by completion status."""
         return [block for block in blocks if block.is_completed() == completed]
 
+    def detect_schedule_conflicts(self, schedule: Schedule) -> List[str]:
+        """Detect task scheduling conflicts and return list of warning messages."""
+        warnings = []
+        blocks = schedule.get_blocks()
+        task_blocks = [block for block in blocks if isinstance(block, TaskScheduleBlock)]
+
+        for i, block1 in enumerate(task_blocks):
+            for block2 in task_blocks[i + 1:]:
+                end_time1 = block1.get_start_time() + block1.get_timedelta()
+                end_time2 = block2.get_start_time() + block2.get_timedelta()
+
+                if block1.get_start_time() < end_time2 and block2.get_start_time() < end_time1:
+                    task1 = block1.get_task()
+                    task2 = block2.get_task()
+                    pet1 = task1.get_pet()
+                    pet2 = task2.get_pet()
+
+                    pet1_name = pet1.get_name() if pet1 else "Unknown"
+                    pet2_name = pet2.get_name() if pet2 else "Unknown"
+
+                    conflict_type = "same pet" if pet1 == pet2 else "different pets"
+                    warning = f"Conflict: '{task1.get_name()}' ({pet1_name}) and '{task2.get_name()}' ({pet2_name}) overlap [{conflict_type}]"
+                    warnings.append(warning)
+
+        return warnings
+
     def get_task_pet_tuples_by_time_of_day_for_owner(self, owner: Owner, target_date: date) -> Dict[TimeOfDay, List[tuple[Task, Pet]]]:
         """Return owner's tasks grouped by time of day and sorted by priority for target date."""
         # Collect all applicable tasks from each pet
