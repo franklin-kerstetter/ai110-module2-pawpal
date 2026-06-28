@@ -10,6 +10,7 @@ class PetClassification(Enum):
     CAT = 1
     BIRD = 2
     SMALL_MAMMAL = 3
+    FISH = 4
 
 class TimeOfDay(Enum):
     MORNING = 0
@@ -100,12 +101,13 @@ class MonthlyPattern(RecurrencePattern):
 
 
 class Task:
-    def __init__(self, name: str, duration: timedelta, priority: int, recurrence_pattern: RecurrencePattern, time_of_day: TimeOfDay):
+    def __init__(self, name: str, duration: timedelta, priority: int, recurrence_pattern: RecurrencePattern, time_of_day: TimeOfDay, pet: Optional['Pet'] = None):
         self._name = name
         self._duration = duration
         self._priority = priority
         self._recurrence_pattern = recurrence_pattern
         self._time_of_day = time_of_day
+        self._pet = pet
         self._preceding_tasks: List[Task] = []
 
     def get_name(self) -> str:
@@ -137,6 +139,12 @@ class Task:
 
     def set_time_of_day(self, time_of_day: TimeOfDay) -> None:
         self._time_of_day = time_of_day
+
+    def get_pet(self) -> Optional['Pet']:
+        return self._pet
+
+    def set_pet(self, pet: Optional['Pet']) -> None:
+        self._pet = pet
 
     def get_preceding_tasks(self) -> List['Task']:
         return self._preceding_tasks
@@ -189,6 +197,7 @@ class Pet:
 
     def add_task(self, task: Task) -> None:
         self._tasks.append(task)
+        task.set_pet(self)
 
     def get_prioritized_tasks_for_date(self, target_date: date) -> List[Task]:
         pass
@@ -237,6 +246,13 @@ class OwnerScheduleBlock(ScheduleBlock):
     def is_completed(self) -> bool:
         pass
 
+    def __str__(self) -> str:
+        start_time = self._start_time.strftime("%I:%M %p")
+        hours, remainder = divmod(int(self._duration.total_seconds()), 3600)
+        minutes = remainder // 60
+        duration_str = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
+        return f"[Owner] {start_time:<12} ({duration_str})"
+
 
 class TaskScheduleBlock(ScheduleBlock):
     def __init__(self, start_time: datetime, task: Task, completed: bool = False, comment: str = ""):
@@ -261,6 +277,18 @@ class TaskScheduleBlock(ScheduleBlock):
 
     def is_completed(self) -> bool:
         return self._completed
+
+    def __str__(self) -> str:
+        task_name = self._task.get_name()
+        start_time = self._start_time.strftime("%I:%M %p")
+        duration = self._task.get_duration()
+        hours, remainder = divmod(int(duration.total_seconds()), 3600)
+        minutes = remainder // 60
+        duration_str = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
+        pet = self._task.get_pet()
+        pet_str = f" | {pet.get_name()}" if pet else ""
+        status = "[✓]" if self._completed else "[ ]"
+        return f"{status} {task_name:<30} {start_time:<12} ({duration_str}){pet_str}"
 
 
 class Schedule:
@@ -287,16 +315,30 @@ class Schedule:
     def add_block(self, block: ScheduleBlock) -> None:
         self._blocks.append(block)
 
+    def __str__(self) -> str:
+        lines = [f"\n{'='*80}"]
+        lines.append(f"Schedule for {self._date.strftime('%A, %B %d, %Y')}")
+        lines.append(f"{'='*80}")
+        if self._blocks:
+            for block in self._blocks:
+                lines.append(str(block))
+        else:
+            lines.append("No blocks scheduled")
+        lines.append(f"{'-'*80}")
+        lines.append(f"Notes: {self._explanation}")
+        lines.append(f"{'='*80}\n")
+        return "\n".join(lines)
+
 
 class Scheduler:
     """Singleton factory. Single scheduler instance manages all schedules.
     Access via Scheduler() or Scheduler.get_instance() — both return same instance."""
     _instance = None
     _tasks_by_time_of_day: Dict[TimeOfDay, time] = {
-        TimeOfDay.MORNING: time(hour=5, min=0),
-        TimeOfDay.MIDDAY: time(hour=11, min=0),
-        TimeOfDay.EVENING: time(hour=17, min=0),
-        TimeOfDay.NIGHT: time(hour=23, min=0)
+        TimeOfDay.MORNING: time(hour=5),
+        TimeOfDay.MIDDAY: time(hour=11),
+        TimeOfDay.EVENING: time(hour=17),
+        TimeOfDay.NIGHT: time(hour=23)
     }
 
     def __new__(cls):
