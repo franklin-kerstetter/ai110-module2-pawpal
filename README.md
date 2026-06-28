@@ -51,8 +51,8 @@ Schedule for Sunday, June 28, 2026
 ================================================================================
 
 MORNING
-[ ] Feed Queen                     05:00 AM     (5m) | Queen
-[ ] Feed Archie                    05:05 AM     (5m) | Archie
+[✓] Feed Queen                     05:00 AM     (5m) | Queen
+[✓] Feed Archie                    05:05 AM     (5m) | Archie
 --------------------------------------------------------------------------------
 
 MIDDAY

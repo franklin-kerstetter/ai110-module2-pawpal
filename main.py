@@ -53,6 +53,12 @@ def generate_feeding_tasks(pet_name: str="My Pet") -> set:
         tasks.add(feeding_task)
     return tasks
 
+def mark_morning_tasks_as_completed(schedule: Schedule) -> None:
+    for schedule_block in schedule.get_blocks():
+        if ScheduleBlock.get_block_time_of_day(schedule_block) == TimeOfDay.MORNING:
+            schedule_block.mark_completed()
+    
+
 
 # ================================================================================
 #
@@ -62,3 +68,8 @@ def generate_feeding_tasks(pet_name: str="My Pet") -> set:
 
 simple_schedule = generate_simple_testing_schedue(date.today())
 print(f"{simple_schedule}")
+
+mark_morning_tasks_as_completed(simple_schedule)
+print(f"Morning Tasks Done!")
+print(f"{simple_schedule}")
+

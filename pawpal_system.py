@@ -221,15 +221,27 @@ class ScheduleBlock(ABC):
     def set_comment(self, comment: str) -> None:
         self._comment = comment
 
-    @abstractmethod
-    def get_timedelta(self) -> timedelta:
-        pass
-
     def is_completed(self) -> bool:
         return self._completed
 
     def set_completed(self, completed: bool) -> None:
         self._completed = completed
+    
+    def mark_completed(self) -> None:
+        self.set_completed(True)
+    
+    def unmark_completed(self) -> None:
+        self.set_completed(False)
+
+    @abstractmethod
+    def get_timedelta(self) -> timedelta:
+        pass
+
+    @staticmethod
+    def get_block_time_of_day(block: 'ScheduleBlock') -> Optional[TimeOfDay]:
+        if isinstance(block, TaskScheduleBlock):
+            return block.get_time_of_day()
+        return None
 
 
 class OwnerScheduleBlock(ScheduleBlock):
@@ -268,7 +280,9 @@ class TaskScheduleBlock(ScheduleBlock):
 
     def get_timedelta(self) -> timedelta:
         return self._task.get_duration()
-
+    
+    def get_time_of_day(self) -> TimeOfDay:
+        return self._task.get_time_of_day()
 
     def __str__(self) -> str:
         task_name = self._task.get_name()
@@ -314,7 +328,7 @@ class Schedule:
         if self._blocks:
             current_time_of_day = None
             for block in self._blocks:
-                block_time_of_day = self._get_block_time_of_day(block)
+                block_time_of_day = ScheduleBlock.get_block_time_of_day(block)
                 if block_time_of_day != current_time_of_day:
                     if current_time_of_day is not None:
                         lines.append(f"{'-'*80}")
@@ -328,11 +342,6 @@ class Schedule:
         lines.append(f"Notes: {self._explanation}")
         lines.append(f"{'='*80}\n")
         return "\n".join(lines)
-
-    def _get_block_time_of_day(self, block: ScheduleBlock) -> Optional[TimeOfDay]:
-        if isinstance(block, TaskScheduleBlock):
-            return block.get_task().get_time_of_day()
-        return None
 
 
 class Scheduler:
