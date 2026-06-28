@@ -305,16 +305,17 @@ class Scheduler:
             cls._instance = cls()
         return cls._instance
 
-    def get_task_pet_tuples_by_time_of_day_for_owner(self, owner: Owner) -> Dict[TimeOfDay, List[tuple[Task, Pet]]]:
+    def get_task_pet_tuples_by_time_of_day_for_owner(self, owner: Owner, target_date: date) -> Dict[TimeOfDay, List[tuple[Task, Pet]]]:
         # Initialize dictionary with empty lists for each time of day
         tasks_by_time_of_day: Dict[TimeOfDay, List[tuple[Task, Pet]]] = {
             time_of_day: [] for time_of_day in TimeOfDay
         }
 
-        # Collect all tasks from each pet and group by the task's time of day
+        # Collect applicable tasks from each pet and group by the task's time of day
         for pet in owner.get_pets():
             for task in pet.get_tasks():
-                tasks_by_time_of_day[task.get_time_of_day()].append((task, pet))
+                if task.is_necessary_for_date(target_date):
+                    tasks_by_time_of_day[task.get_time_of_day()].append((task, pet))
 
         # Sort tasks within each time of day group by priority (higher first)
         # and by pet age (older pets first) as a tiebreaker
@@ -329,8 +330,16 @@ class Scheduler:
     def generate_schedule(self, owner: Owner, target_date: date) -> Schedule:
         schedule = Schedule(target_date)
 
-        # Get all tasks grouped by time of day and sorted by priority + pet age
-        tasks_by_time = self.get_task_pet_tuples_by_time_of_day_for_owner(owner)
+        # Get applicable tasks grouped by time of day and sorted by priority + pet age
+        tasks_by_time = self.get_task_pet_tuples_by_time_of_day_for_owner(owner, target_date)
+
+        # Collect all applicable tasks for tracking
+        applicable_tasks: List[tuple[Task, Pet]] = []
+        for task_list in tasks_by_time.values():
+            applicable_tasks.extend(task_list)
+
+        # Track which tasks were actually scheduled
+        scheduled_tasks: set[tuple[Task, Pet]] = set()
 
         # Start at earliest of MORNING or owner's availability
         start_datetime = max(
@@ -362,13 +371,27 @@ class Scheduler:
                 if current_datetime >= next_period_start:
                     break
 
-                # Only add if task applies to target date
-                if task.is_necessary_for_date(target_date):
-                    block = TaskScheduleBlock(current_datetime, task)
-                    schedule.add_block(block)
+                block = TaskScheduleBlock(current_datetime, task)
+                schedule.add_block(block)
+                scheduled_tasks.add((task, pet))
 
-                    # Increment current datetime by task duration
-                    current_datetime = current_datetime + task.get_duration()
+                # Increment current datetime by task duration
+                current_datetime = current_datetime + task.get_duration()
+
+        # Build explanation with pets, scheduling status, and missing tasks if any
+        missing_tasks = [(task, pet) for task, pet in applicable_tasks if (task, pet) not in scheduled_tasks]
+
+        if missing_tasks:
+            scheduled_count = len(scheduled_tasks)
+            total_count = len(applicable_tasks)
+            missing_details = "; ".join([f"{task.get_name()} ({pet.get_name()})" for task, pet in missing_tasks])
+            explanation = f"Scheduled {scheduled_count}/{total_count} tasks. Missing: {missing_details}."
+        else:
+            pet_names = [pet.get_name() for pet in owner.get_pets()]
+            pets_text = ", ".join(pet_names) if pet_names else "no pets"
+            explanation = f"Pets: {pets_text}. All tasks scheduled."
+
+        schedule.set_explanation(explanation)
 
         owner.add_schedule(schedule)
         return schedule
