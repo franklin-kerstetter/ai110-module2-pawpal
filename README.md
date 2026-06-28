@@ -46,6 +46,36 @@ pip install -r requirements.txt
 
 **CLI Output**
 ```
+Test generating simple schedule
+
+================================================================================
+Schedule for Sunday, June 28, 2026
+================================================================================
+
+MORNING
+[ ] Feed Queen                     05:00 AM     (5m) | Queen
+[ ] Feed Archie                    05:05 AM     (5m) | Archie
+--------------------------------------------------------------------------------
+
+MIDDAY
+[ ] Feed Queen                     11:00 AM     (5m) | Queen
+[ ] Feed Archie                    11:05 AM     (5m) | Archie
+--------------------------------------------------------------------------------
+
+EVENING
+[ ] Feed Queen                     05:00 PM     (5m) | Queen
+[ ] Feed Archie                    05:05 PM     (5m) | Archie
+--------------------------------------------------------------------------------
+
+NIGHT
+[ ] Feed Queen                     11:00 PM     (5m) | Queen
+[ ] Feed Archie                    11:05 PM     (5m) | Archie
+--------------------------------------------------------------------------------
+Notes: All tasks scheduled.
+================================================================================
+
+Test marking morning tasks as done!
+
 ================================================================================
 Schedule for Sunday, June 28, 2026
 ================================================================================
@@ -69,8 +99,70 @@ NIGHT
 [ ] Feed Queen                     11:00 PM     (5m) | Queen
 [ ] Feed Archie                    11:05 PM     (5m) | Archie
 --------------------------------------------------------------------------------
-Notes: Pets: Archie, Queen. All tasks scheduled.
+Notes: All tasks scheduled.
 ================================================================================
+
+Test generating complex schedule
+
+================================================================================
+Schedule for Sunday, June 28, 2026
+================================================================================
+
+MORNING
+[ ] Feed Buddy                     06:00 AM     (5m) | Buddy
+[ ] Feed Fluffy                    06:05 AM     (5m) | Fluffy
+--------------------------------------------------------------------------------
+
+MIDDAY
+[ ] Feed Buddy                     11:00 AM     (5m) | Buddy
+[ ] Feed Fluffy                    11:05 AM     (5m) | Fluffy
+--------------------------------------------------------------------------------
+
+EVENING
+[ ] Feed Buddy                     05:00 PM     (5m) | Buddy
+[ ] Feed Fluffy                    05:05 PM     (5m) | Fluffy
+--------------------------------------------------------------------------------
+Notes: Scheduled 6/8 tasks. Missing: NIGHT: Feed Fluffy (Fluffy), Feed Buddy (Buddy).
+================================================================================
+
+
+================================================================================
+SORTING AND FILTERING DEMONSTRATION
+================================================================================
+
+Completed Blocks (3):
+  [✓] Feed Buddy                     06:00 AM     (5m) | Buddy
+  [✓] Feed Buddy                     11:00 AM     (5m) | Buddy
+  [✓] Feed Buddy                     05:00 PM     (5m) | Buddy
+
+Uncompleted Blocks (3):
+  [ ] Feed Fluffy                    06:05 AM     (5m) | Fluffy
+  [ ] Feed Fluffy                    11:05 AM     (5m) | Fluffy
+  [ ] Feed Fluffy                    05:05 PM     (5m) | Fluffy
+
+--------------------------------------------------------------------------------
+
+All Tasks Sorted by Time of Day, Priority, and Pet Age:
+  Feed Buddy | Buddy | MORNING (explicit: 06:00:00)
+  Feed Fluffy | Fluffy | MORNING (explicit: 06:00:00)
+  Feed Buddy | Buddy | MIDDAY (explicit: 12:30:00)
+  Feed Fluffy | Fluffy | MIDDAY (explicit: 12:30:00)
+  Feed Buddy | Buddy | EVENING (explicit: 17:30:00)
+  Feed Fluffy | Fluffy | EVENING (explicit: 17:30:00)
+
+--------------------------------------------------------------------------------
+
+Tasks for Fluffy (3):
+  Feed Fluffy | MORNING (explicit: 06:00:00)
+  Feed Fluffy | MIDDAY (explicit: 12:30:00)
+  Feed Fluffy | EVENING (explicit: 17:30:00)
+
+--------------------------------------------------------------------------------
+
+Tasks for Buddy (3):
+  Feed Buddy | MORNING (explicit: 06:00:00)
+  Feed Buddy | MIDDAY (explicit: 12:30:00)
+  Feed Buddy | EVENING (explicit: 17:30:00)
 ```
 
 ## 🧪 Testing PawPal+

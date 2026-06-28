@@ -131,7 +131,7 @@ class MonthlyPattern(RecurrencePattern):
 
 
 class Task:
-    def __init__(self, name: str, duration: timedelta, priority: int, recurrence_pattern: RecurrencePattern, time_of_day: TimeOfDay, pet: Optional['Pet'] = None, uuid: Optional[str] = None):
+    def __init__(self, name: str, duration: timedelta, priority: int, recurrence_pattern: RecurrencePattern, time_of_day: TimeOfDay, pet: Optional['Pet'] = None, uuid: Optional[str] = None, start_time: Optional[time] = None):
         """Initialize task with name, duration, priority, recurrence, and preferred time of day."""
         if duration <= timedelta(0):
             raise ValueError("Task duration must be greater than zero")
@@ -141,6 +141,7 @@ class Task:
         self._recurrence_pattern = recurrence_pattern
         self._time_of_day = time_of_day
         self._pet = pet
+        self._start_time = start_time
         self._preceding_tasks: List[Task] = []
         self._uuid = uuid if uuid is not None else uuid4().hex
 
@@ -183,6 +184,14 @@ class Task:
     def set_time_of_day(self, time_of_day: TimeOfDay) -> None:
         """Update preferred time of day for task."""
         self._time_of_day = time_of_day
+
+    def get_start_time(self) -> Optional[time]:
+        """Return specified start time for task."""
+        return self._start_time
+
+    def set_start_time(self, start_time: Optional[time]) -> None:
+        """Update specified start time for task."""
+        self._start_time = start_time
 
     def get_pet(self) -> Optional['Pet']:
         """Return pet this task belongs to."""
@@ -456,6 +465,29 @@ class Scheduler:
             cls._instance = cls()
         return cls._instance
 
+    @staticmethod
+    def _get_sort_key_for_task_pet_tuple(task_pet_tuple: tuple[Task, Pet]) -> tuple:
+        """Return sort key tuple for a task-pet pair."""
+        task, pet = task_pet_tuple
+        return (task.get_time_of_day().value, -task.get_priority(), -pet.get_age(), pet.get_uuid())
+
+    def sort_task_pet_tuples_by_time(self, task_pet_tuples: List[tuple[Task, Pet]]) -> List[tuple[Task, Pet]]:
+        """Return task-pet tuples sorted by time of day, priority, age, and UUID."""
+        return sorted(task_pet_tuples, key=self._get_sort_key_for_task_pet_tuple)
+
+    def sort_by_time(self, tasks: List[Task]) -> List[tuple[Task, Pet]]:
+        """Return tasks with their pets sorted by time of day, priority, age, and UUID."""
+        task_pet_tuples = [(task, task.get_pet()) for task in tasks]
+        return self.sort_task_pet_tuples_by_time(task_pet_tuples)
+
+    def filter_tasks_by_pet_name(self, task_pet_tuples: List[tuple[Task, Pet]], pet_name: str) -> List[tuple[Task, Pet]]:
+        """Return task-pet tuples filtered by pet name."""
+        return [task_pet for task_pet in task_pet_tuples if task_pet[1].get_name() == pet_name]
+
+    def filter_blocks_by_completion_status(self, blocks: List[ScheduleBlock], completed: bool) -> List[ScheduleBlock]:
+        """Return schedule blocks filtered by completion status."""
+        return [block for block in blocks if block.is_completed() == completed]
+
     def get_task_pet_tuples_by_time_of_day_for_owner(self, owner: Owner, target_date: date) -> Dict[TimeOfDay, List[tuple[Task, Pet]]]:
         """Return owner's tasks grouped by time of day and sorted by priority for target date."""
         # Collect all applicable tasks from each pet
@@ -466,9 +498,7 @@ class Scheduler:
                     all_tasks.append((task, pet))
 
         # Sort once by time of day, priority (higher first), pet age (older first), then UUID
-        all_tasks.sort(
-            key=lambda x: (x[0].get_time_of_day().value, -x[0].get_priority(), -x[1].get_age(), x[1].get_uuid())
-        )
+        all_tasks = self.sort_task_pet_tuples_by_time(all_tasks)
 
         # Group by time of day (already sorted within each group)
         tasks_by_time_of_day: Dict[TimeOfDay, List[tuple[Task, Pet]]] = {
