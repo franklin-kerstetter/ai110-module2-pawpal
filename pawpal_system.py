@@ -327,70 +327,82 @@ class Scheduler:
 
         return tasks_by_time_of_day
 
-    def generate_schedule(self, owner: Owner, target_date: date) -> Schedule:
-        schedule = Schedule(target_date)
-
-        # Get applicable tasks grouped by time of day and sorted by priority + pet age
-        tasks_by_time = self.get_task_pet_tuples_by_time_of_day_for_owner(owner, target_date)
-
-        # Collect all applicable tasks for tracking
-        applicable_tasks: List[tuple[Task, Pet]] = []
-        for task_list in tasks_by_time.values():
-            applicable_tasks.extend(task_list)
-
-        # Track which tasks were actually scheduled
-        scheduled_tasks: set[tuple[Task, Pet]] = set()
-
-        # Start at earliest of MORNING or owner's availability
-        start_datetime = max(
+    def _calculate_schedule_start_datetime(self, owner: Owner, target_date: date) -> datetime:
+        return max(
             datetime.combine(target_date, self._tasks_by_time_of_day[TimeOfDay.MORNING]),
             datetime.combine(target_date, owner.get_available_hours_start())
         )
-        current_datetime = start_datetime
 
-        # Process each time period in order
+    def _schedule_time_period(
+        self,
+        schedule: Schedule,
+        time_period: TimeOfDay,
+        period_index: int,
+        tasks: List[tuple[Task, Pet]],
+        current_datetime: datetime,
+        target_date: date,
+        scheduled_tasks: set[tuple[Task, Pet]],
+    ) -> datetime:
+        period_start_datetime = datetime.combine(target_date, self._tasks_by_time_of_day[time_period])
+
+        if current_datetime < period_start_datetime:
+            current_datetime = period_start_datetime
+
         time_periods = list(TimeOfDay)
+        if period_index < len(time_periods) - 1:
+            next_period_start = datetime.combine(target_date, self._tasks_by_time_of_day[time_periods[period_index + 1]])
+        else:
+            next_period_start = datetime.combine(target_date, time(23, 59))
 
-        for i, time_period in enumerate(time_periods):
-            tasks = tasks_by_time[time_period]
-            period_start_datetime = datetime.combine(target_date, self._tasks_by_time_of_day[time_period])
+        for task, pet in tasks:
+            if current_datetime >= next_period_start:
+                break
 
-            # Use current time if already past period start, otherwise jump to period start
-            if current_datetime < period_start_datetime:
-                current_datetime = period_start_datetime
+            block = TaskScheduleBlock(current_datetime, task)
+            schedule.add_block(block)
+            scheduled_tasks.add((task, pet))
+            current_datetime = current_datetime + task.get_duration()
 
-            # Determine boundary for this period (next period's start time)
-            if i < len(time_periods) - 1:
-                next_period_start = datetime.combine(target_date, self._tasks_by_time_of_day[time_periods[i + 1]])
-            else:
-                next_period_start = datetime.combine(target_date, time(23, 59))
+        return current_datetime
 
-            # Process each task in this time period
-            for task, pet in tasks:
-                # Stop if we've reached or passed next period
-                if current_datetime >= next_period_start:
-                    break
-
-                block = TaskScheduleBlock(current_datetime, task)
-                schedule.add_block(block)
-                scheduled_tasks.add((task, pet))
-
-                # Increment current datetime by task duration
-                current_datetime = current_datetime + task.get_duration()
-
-        # Build explanation with pets, scheduling status, and missing tasks if any
+    def _generate_schedule_explanation(
+        self,
+        owner: Owner,
+        applicable_tasks: List[tuple[Task, Pet]],
+        scheduled_tasks: set[tuple[Task, Pet]],
+    ) -> str:
         missing_tasks = [(task, pet) for task, pet in applicable_tasks if (task, pet) not in scheduled_tasks]
 
         if missing_tasks:
             scheduled_count = len(scheduled_tasks)
             total_count = len(applicable_tasks)
             missing_details = "; ".join([f"{task.get_name()} ({pet.get_name()})" for task, pet in missing_tasks])
-            explanation = f"Scheduled {scheduled_count}/{total_count} tasks. Missing: {missing_details}."
+            return f"Scheduled {scheduled_count}/{total_count} tasks. Missing: {missing_details}."
         else:
             pet_names = [pet.get_name() for pet in owner.get_pets()]
             pets_text = ", ".join(pet_names) if pet_names else "no pets"
-            explanation = f"Pets: {pets_text}. All tasks scheduled."
+            return f"Pets: {pets_text}. All tasks scheduled."
 
+    def generate_schedule(self, owner: Owner, target_date: date) -> Schedule:
+        schedule = Schedule(target_date)
+
+        tasks_by_time = self.get_task_pet_tuples_by_time_of_day_for_owner(owner, target_date)
+
+        applicable_tasks: List[tuple[Task, Pet]] = []
+        for task_list in tasks_by_time.values():
+            applicable_tasks.extend(task_list)
+
+        scheduled_tasks: set[tuple[Task, Pet]] = set()
+        current_datetime = self._calculate_schedule_start_datetime(owner, target_date)
+
+        time_periods = list(TimeOfDay)
+        for i, time_period in enumerate(time_periods):
+            tasks = tasks_by_time[time_period]
+            current_datetime = self._schedule_time_period(
+                schedule, time_period, i, tasks, current_datetime, target_date, scheduled_tasks
+            )
+
+        explanation = self._generate_schedule_explanation(owner, applicable_tasks, scheduled_tasks)
         schedule.set_explanation(explanation)
 
         owner.add_schedule(schedule)
