@@ -89,6 +89,8 @@ class DailyPattern(RecurrencePattern):
 class WeeklyPattern(RecurrencePattern):
     def __init__(self, days: List[int]):
         """Initialize weekly pattern with list of weekday numbers (0=Monday, 6=Sunday)."""
+        if not all(0 <= day <= 6 for day in days):
+            raise ValueError("Weekday numbers must be in range 0-6 (0=Monday, 6=Sunday)")
         self._days = days
 
     def get_days(self) -> List[int]:
@@ -97,6 +99,8 @@ class WeeklyPattern(RecurrencePattern):
 
     def set_days(self, days: List[int]) -> None:
         """Update days pattern applies to."""
+        if not all(0 <= day <= 6 for day in days):
+            raise ValueError("Weekday numbers must be in range 0-6 (0=Monday, 6=Sunday)")
         self._days = days
 
     def applies_to_date(self, target_date: date) -> bool:
@@ -107,6 +111,8 @@ class WeeklyPattern(RecurrencePattern):
 class MonthlyPattern(RecurrencePattern):
     def __init__(self, day_of_month: List[int]):
         """Initialize monthly pattern with list of days (1-31)."""
+        if not all(1 <= day <= 31 for day in day_of_month):
+            raise ValueError("Day of month must be in range 1-31")
         self._day_of_month = day_of_month
 
     def get_day_of_month(self) -> List[int]:
@@ -115,6 +121,8 @@ class MonthlyPattern(RecurrencePattern):
 
     def set_day_of_month(self, day_of_month: List[int]) -> None:
         """Update days pattern applies to."""
+        if not all(1 <= day <= 31 for day in day_of_month):
+            raise ValueError("Day of month must be in range 1-31")
         self._day_of_month = day_of_month
 
     def applies_to_date(self, target_date: date) -> bool:
@@ -125,6 +133,8 @@ class MonthlyPattern(RecurrencePattern):
 class Task:
     def __init__(self, name: str, duration: timedelta, priority: int, recurrence_pattern: RecurrencePattern, time_of_day: TimeOfDay, pet: Optional['Pet'] = None):
         """Initialize task with name, duration, priority, recurrence, and preferred time of day."""
+        if duration <= timedelta(0):
+            raise ValueError("Task duration must be greater than zero")
         self._name = name
         self._duration = duration
         self._priority = priority
@@ -195,14 +205,14 @@ class Task:
 
 
 class Pet:
-    def __init__(self, name: str, classification: PetClassification, age: int = 0, birthday: Optional[date] = None, _uuid: str = uuid4().hex):
+    def __init__(self, name: str, classification: PetClassification, age: int = 0, birthday: Optional[date] = None, _uuid: Optional[str] = None):
         """Initialize pet with name, classification, age, and birthday."""
         self._name = name
         self._classification = classification
         self._age = age
         self._birthday = birthday if birthday is not None else date.today()
         self._tasks: List[Task] = []
-        self._uuid = _uuid
+        self._uuid = _uuid if _uuid is not None else uuid4().hex
 
     def get_name(self) -> str:
         """Return pet name."""
@@ -248,10 +258,6 @@ class Pet:
         """Add task to pet and set task's pet reference."""
         self._tasks.append(task)
         task.set_pet(self)
-
-    def get_prioritized_tasks_for_date(self, target_date: date) -> List[Task]:
-        """Return tasks for pet on given date sorted by priority."""
-        pass
 
 
 class ScheduleBlock(ABC):
@@ -428,12 +434,13 @@ class Scheduler:
     """Singleton factory. Single scheduler instance manages all schedules.
     Access via Scheduler() or Scheduler.get_instance() — both return same instance."""
     _instance = None
-    _tasks_by_time_of_day: Dict[TimeOfDay, time] = {
+    _TIME_OF_DAY_TIMES: Dict[TimeOfDay, time] = {
         TimeOfDay.MORNING: time(hour=5),
         TimeOfDay.MIDDAY: time(hour=11),
         TimeOfDay.EVENING: time(hour=17),
         TimeOfDay.NIGHT: time(hour=23)
     }
+    _TIME_PERIODS = list(TimeOfDay)
 
     def __new__(cls):
         """Enforce singleton pattern for scheduler."""
@@ -450,31 +457,31 @@ class Scheduler:
 
     def get_task_pet_tuples_by_time_of_day_for_owner(self, owner: Owner, target_date: date) -> Dict[TimeOfDay, List[tuple[Task, Pet]]]:
         """Return owner's tasks grouped by time of day and sorted by priority for target date."""
-        # Initialize dictionary with empty lists for each time of day
-        tasks_by_time_of_day: Dict[TimeOfDay, List[tuple[Task, Pet]]] = {
-            time_of_day: [] for time_of_day in TimeOfDay
-        }
-
-        # Collect applicable tasks from each pet and group by the task's time of day
+        # Collect all applicable tasks from each pet
+        all_tasks: List[tuple[Task, Pet]] = []
         for pet in owner.get_pets():
             for task in pet.get_tasks():
                 if task.is_necessary_for_date(target_date):
-                    tasks_by_time_of_day[task.get_time_of_day()].append((task, pet))
+                    all_tasks.append((task, pet))
 
-        # Sort tasks within each time of day group by priority (higher first),
-        # pet age (older first), then pet UUID as tiebreaker
-        for time_of_day in TimeOfDay:
-            tasks_by_time_of_day[time_of_day].sort(
-                key=lambda x: (x[0].get_priority(), x[1].get_age(), x[1].get_uuid()),
-                reverse=True
-            )
+        # Sort once by time of day, priority (higher first), pet age (older first), then UUID
+        all_tasks.sort(
+            key=lambda x: (x[0].get_time_of_day().value, -x[0].get_priority(), -x[1].get_age(), x[1].get_uuid())
+        )
+
+        # Group by time of day (already sorted within each group)
+        tasks_by_time_of_day: Dict[TimeOfDay, List[tuple[Task, Pet]]] = {
+            time_of_day: [] for time_of_day in TimeOfDay
+        }
+        for task, pet in all_tasks:
+            tasks_by_time_of_day[task.get_time_of_day()].append((task, pet))
 
         return tasks_by_time_of_day
 
     def _calculate_schedule_start_datetime(self, owner: Owner, target_date: date) -> datetime:
         """Calculate schedule start time as max of morning time and owner availability start."""
         return max(
-            datetime.combine(target_date, self._tasks_by_time_of_day[TimeOfDay.MORNING]),
+            datetime.combine(target_date, self._TIME_OF_DAY_TIMES[TimeOfDay.MORNING]),
             datetime.combine(target_date, owner.get_available_hours_start())
         )
 
@@ -487,16 +494,16 @@ class Scheduler:
         current_datetime: datetime,
         target_date: date,
         scheduled_tasks: set[tuple[Task, Pet]],
+        owner_end_datetime: datetime,
     ) -> datetime:
         """Schedule tasks for a specific time period, returning updated current time."""
-        period_start_datetime = datetime.combine(target_date, self._tasks_by_time_of_day[time_period])
+        period_start_datetime = datetime.combine(target_date, self._TIME_OF_DAY_TIMES[time_period])
 
         if current_datetime < period_start_datetime:
             current_datetime = period_start_datetime
 
-        time_periods = list(TimeOfDay)
-        if period_index < len(time_periods) - 1:
-            next_period_start = datetime.combine(target_date, self._tasks_by_time_of_day[time_periods[period_index + 1]])
+        if period_index < len(self._TIME_PERIODS) - 1:
+            next_period_start = datetime.combine(target_date, self._TIME_OF_DAY_TIMES[self._TIME_PERIODS[period_index + 1]])
         else:
             next_period_start = datetime.combine(target_date, time(23, 59))
 
@@ -504,31 +511,50 @@ class Scheduler:
             if current_datetime >= next_period_start:
                 break
 
+            preceding_scheduled = all(
+                (pt, pt.get_pet()) in scheduled_tasks
+                for pt in task.get_preceding_tasks()
+            )
+            if not preceding_scheduled:
+                continue
+
+            task_end_datetime = current_datetime + task.get_duration()
+            if task_end_datetime > owner_end_datetime:
+                continue
+
             block = TaskScheduleBlock(current_datetime, task)
             schedule.add_block(block)
             scheduled_tasks.add((task, pet))
-            current_datetime = current_datetime + task.get_duration()
+            current_datetime = task_end_datetime
 
         return current_datetime
 
     def _generate_schedule_explanation(
         self,
-        owner: Owner,
-        applicable_tasks: List[tuple[Task, Pet]],
+        applicable_tasks: set[tuple[Task, Pet]],
         scheduled_tasks: set[tuple[Task, Pet]],
     ) -> str:
         """Generate explanation text describing scheduled and missing tasks."""
-        missing_tasks = [(task, pet) for task, pet in applicable_tasks if (task, pet) not in scheduled_tasks]
+        missing_tasks = applicable_tasks - scheduled_tasks
 
         if missing_tasks:
             scheduled_count = len(scheduled_tasks)
             total_count = len(applicable_tasks)
-            missing_details = "; ".join([f"{task.get_name()} ({pet.get_name()})" for task, pet in missing_tasks])
+
+            missing_by_time = {}
+            for task, pet in missing_tasks:
+                time_of_day = task.get_time_of_day().name
+                if time_of_day not in missing_by_time:
+                    missing_by_time[time_of_day] = []
+                missing_by_time[time_of_day].append(f"{task.get_name()} ({pet.get_name()})")
+
+            missing_details = "; ".join(
+                f"{time_of_day}: {', '.join(tasks)}"
+                for time_of_day, tasks in missing_by_time.items()
+            )
             return f"Scheduled {scheduled_count}/{total_count} tasks. Missing: {missing_details}."
         else:
-            pet_names = [pet.get_name() for pet in owner.get_pets()]
-            pets_text = ", ".join(pet_names) if pet_names else "no pets"
-            return f"Pets: {pets_text}. All tasks scheduled."
+            return "All tasks scheduled."
 
     def generate_schedule(self, owner: Owner, target_date: date) -> Schedule:
         """Generate complete schedule for owner on target date."""
@@ -536,21 +562,21 @@ class Scheduler:
 
         tasks_by_time = self.get_task_pet_tuples_by_time_of_day_for_owner(owner, target_date)
 
-        applicable_tasks: List[tuple[Task, Pet]] = []
+        applicable_tasks: set[tuple[Task, Pet]] = set()
         for task_list in tasks_by_time.values():
-            applicable_tasks.extend(task_list)
+            applicable_tasks.update(task_list)
 
         scheduled_tasks: set[tuple[Task, Pet]] = set()
         current_datetime = self._calculate_schedule_start_datetime(owner, target_date)
+        owner_end_datetime = datetime.combine(target_date, owner.get_available_hours_end())
 
-        time_periods = list(TimeOfDay)
-        for i, time_period in enumerate(time_periods):
+        for i, time_period in enumerate(self._TIME_PERIODS):
             tasks = tasks_by_time[time_period]
             current_datetime = self._schedule_time_period(
-                schedule, time_period, i, tasks, current_datetime, target_date, scheduled_tasks
+                schedule, time_period, i, tasks, current_datetime, target_date, scheduled_tasks, owner_end_datetime
             )
 
-        explanation = self._generate_schedule_explanation(owner, applicable_tasks, scheduled_tasks)
+        explanation = self._generate_schedule_explanation(applicable_tasks, scheduled_tasks)
         schedule.set_explanation(explanation)
 
         owner.add_schedule(schedule)
