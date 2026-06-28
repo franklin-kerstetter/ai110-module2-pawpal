@@ -1,6 +1,6 @@
 import streamlit as st
 from datetime import timedelta
-from pawpal_system import Task, DailyPattern, TimeOfDay
+from pawpal_system import Task, DailyPattern, TimeOfDay, Pet
 from components import render_sidebar_navigation
 
 st.set_page_config(page_title="Task Configuration", layout="wide")
@@ -58,7 +58,7 @@ with col4:
     priority = st.number_input("Priority (1-5)", min_value=1, max_value=5, value=3, step=1, key="task_priority_input")
 
 if st.button("Add task", use_container_width=True):
-    pet = st.session_state.pets[selected_pet]
+    pet: Pet = st.session_state.pets[selected_pet]
     task = Task(
         name=task_title,
         duration=timedelta(minutes=duration_min),

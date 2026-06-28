@@ -68,7 +68,9 @@ with col3:
     if st.button("Add pet"):
         if pet_name and pet_name not in st.session_state.pets:
             pet_classification = PetClassification[species.upper()]
-            st.session_state.pets[pet_name] = Pet(pet_name, pet_classification)
+            new_pet = Pet(pet_name, pet_classification)
+            st.session_state.pets[pet_name] = new_pet
+            st.session_state.owner.add_pet(new_pet)
             st.session_state.pet_tasks[pet_name] = []
             st.success(f"✅ Added {pet_name} ({species})")
         elif pet_name in st.session_state.pets:
@@ -81,7 +83,7 @@ if st.session_state.pets:
     cols = st.columns(len(st.session_state.pets))
     for idx, (pet_name, pet) in enumerate(st.session_state.pets.items()):
         with cols[idx]:
-            st.metric(pet_name, pet.get_classification().name.lower())
+            st.metric(pet.get_classification().name.lower(), pet_name)
 else:
     st.info("No pets yet. Add one above.")
 
