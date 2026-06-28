@@ -101,7 +101,7 @@ class WeeklyPattern(RecurrencePattern):
 
     def applies_to_date(self, target_date: date) -> bool:
         """Pattern applies if date's weekday is in the days list."""
-        return target_date.weekday() in self._days
+        return target_date.weekday() in self.get_days()
 
 
 class MonthlyPattern(RecurrencePattern):
@@ -119,7 +119,7 @@ class MonthlyPattern(RecurrencePattern):
 
     def applies_to_date(self, target_date: date) -> bool:
         """Pattern applies if date's day matches days list."""
-        return target_date.day in self._day_of_month
+        return target_date.day in self.get_day_of_month()
 
 
 class Task:
@@ -191,7 +191,7 @@ class Task:
 
     def is_necessary_for_date(self, target_date: date) -> bool:
         """Return True if task applies to the given date based on recurrence pattern."""
-        return self._recurrence_pattern.applies_to_date(target_date)
+        return self.get_recurrence_pattern().applies_to_date(target_date)
 
 
 class Pet:
@@ -326,8 +326,8 @@ class OwnerScheduleBlock(ScheduleBlock):
 
     def __str__(self) -> str:
         """Return formatted string representation of owner block."""
-        start_time = self._start_time.strftime("%I:%M %p")
-        hours, remainder = divmod(int(self._duration.total_seconds()), 3600)
+        start_time = self.get_start_time().strftime("%I:%M %p")
+        hours, remainder = divmod(int(self.get_duration().total_seconds()), 3600)
         minutes = remainder // 60
         duration_str = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
         return f"[Owner] {start_time:<12} ({duration_str})"
@@ -357,15 +357,15 @@ class TaskScheduleBlock(ScheduleBlock):
 
     def __str__(self) -> str:
         """Return formatted string representation of task block."""
-        task_name = self._task.get_name()
-        start_time = self._start_time.strftime("%I:%M %p")
-        duration = self._task.get_duration()
+        task_name = self.get_task().get_name()
+        start_time = self.get_start_time().strftime("%I:%M %p")
+        duration = self.get_task().get_duration()
         hours, remainder = divmod(int(duration.total_seconds()), 3600)
         minutes = remainder // 60
         duration_str = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
-        pet = self._task.get_pet()
+        pet = self.get_task().get_pet()
         pet_str = f" | {pet.get_name()}" if pet else ""
-        status = "[✓]" if self._completed else "[ ]"
+        status = "[✓]" if self.is_completed() else "[ ]"
         return f"{status} {task_name:<30} {start_time:<12} ({duration_str}){pet_str}"
 
 
@@ -403,11 +403,11 @@ class Schedule:
     def __str__(self) -> str:
         """Return formatted string representation of schedule grouped by time of day."""
         lines = [f"\n{'='*80}"]
-        lines.append(f"Schedule for {self._date.strftime('%A, %B %d, %Y')}")
+        lines.append(f"Schedule for {self.get_date().strftime('%A, %B %d, %Y')}")
         lines.append(f"{'='*80}")
-        if self._blocks:
+        if self.get_blocks():
             current_time_of_day = None
-            for block in self._blocks:
+            for block in self.get_blocks():
                 block_time_of_day = ScheduleBlock.get_block_time_of_day(block)
                 if block_time_of_day != current_time_of_day:
                     if current_time_of_day is not None:
@@ -419,7 +419,7 @@ class Schedule:
         else:
             lines.append("No blocks scheduled")
         lines.append(f"{'-'*80}")
-        lines.append(f"Notes: {self._explanation}")
+        lines.append(f"Notes: {self.get_explanation()}")
         lines.append(f"{'='*80}\n")
         return "\n".join(lines)
 
