@@ -34,18 +34,18 @@ def generate_simple_testing_schedue(schedule_date: date) -> Schedule:
 def create_pet_with_feeding_tasks(name: str, classification: PetClassification, age: int, birthday: date) -> Pet:
     created_pet = Pet(name, classification, age, birthday)
     
-    feeding_tasks = generate_feeding_tasks()
+    feeding_tasks = generate_feeding_tasks(name)
     for task in feeding_tasks:
         created_pet.add_task(task)
     
     return created_pet
     
 
-def generate_feeding_tasks() -> set:
+def generate_feeding_tasks(pet_name: str="My Pet") -> set:
     tasks = set()
     for i, time_of_day_enum in enumerate(list(TimeOfDay)):
         time_of_day = time_of_day_enum.name
-        feeding_task = Task(name=f"{time_of_day} feeding", 
+        feeding_task = Task(name=f"Feed {pet_name}", 
                     duration=timedelta(minutes=5),
                     priority=1,
                     recurrence_pattern=DailyPattern(),

@@ -320,7 +320,15 @@ class Schedule:
         lines.append(f"Schedule for {self._date.strftime('%A, %B %d, %Y')}")
         lines.append(f"{'='*80}")
         if self._blocks:
+            current_time_of_day = None
             for block in self._blocks:
+                block_time_of_day = self._get_block_time_of_day(block)
+                if block_time_of_day != current_time_of_day:
+                    if current_time_of_day is not None:
+                        lines.append(f"{'-'*80}")
+                    if block_time_of_day:
+                        lines.append(f"\n{block_time_of_day.name}")
+                    current_time_of_day = block_time_of_day
                 lines.append(str(block))
         else:
             lines.append("No blocks scheduled")
@@ -328,6 +336,11 @@ class Schedule:
         lines.append(f"Notes: {self._explanation}")
         lines.append(f"{'='*80}\n")
         return "\n".join(lines)
+
+    def _get_block_time_of_day(self, block: ScheduleBlock) -> Optional[TimeOfDay]:
+        if isinstance(block, TaskScheduleBlock):
+            return block.get_task().get_time_of_day()
+        return None
 
 
 class Scheduler:
