@@ -49,13 +49,13 @@ with col1:
     task_title = st.text_input("Task title", value="Morning walk", key="task_title_input")
 
 with col2:
-    duration_min = st.number_input("Duration (minutes)", min_value=1, max_value=240, value=20, step=5, key="task_duration_input")
+    duration_min = st.number_input("Duration (minutes)", min_value=1, max_value=240, value=15, step=1, key="task_duration_input")
 
 with col3:
     time_of_day = st.selectbox("Time of day", [t.name.lower() for t in TimeOfDay], key="task_time_select")
 
 with col4:
-    priority = st.number_input("Priority (1-5)", min_value=1, max_value=5, value=3, step=1, key="task_priority_input")
+    priority = st.number_input("Priority (1 low - 5 high)", min_value=1, max_value=5, value=3, step=1, key="task_priority_input")
 
 if st.button("Add task", use_container_width=True):
     pet: Pet = st.session_state.pets[selected_pet]

@@ -1,6 +1,6 @@
 import streamlit as st
 from datetime import date
-from pawpal_system import Scheduler
+from pawpal_system import Scheduler, TaskScheduleBlock, OwnerScheduleBlock
 from components import render_sidebar_navigation
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="wide")
@@ -98,8 +98,74 @@ else:
 
         if schedule.get_blocks():
             st.markdown("### Schedule Blocks:")
-            for block in schedule.get_blocks():
-                st.write(str(block))
+
+            # Create table headers
+            col1, col2, col3, col4, col5 = st.columns([2, 3, 1.5, 2, 1.5])
+            with col1:
+                st.markdown("**Time**")
+            with col2:
+                st.markdown("**Task**")
+            with col3:
+                st.markdown("**Duration**")
+            with col4:
+                st.markdown("**Pet**")
+            with col5:
+                st.markdown("**Status**")
+
+            st.divider()
+
+            # Display each block as a table row
+            for idx, block in enumerate(schedule.get_blocks()):
+                col1, col2, col3, col4, col5 = st.columns([2, 3, 1.5, 2, 1.5])
+
+                # Format time
+                start_time = block.get_start_time().strftime("%I:%M %p")
+
+                # Task name and type
+                if isinstance(block, TaskScheduleBlock):
+                    task_name = block.get_task().get_name()
+                    duration_td = block.get_task().get_duration()
+                    pet = block.get_task().get_pet()
+                    pet_name = pet.get_name() if pet else "—"
+                else:  # OwnerScheduleBlock
+                    task_name = "[Owner Availability]"
+                    duration_td = block.get_duration()
+                    pet_name = "—"
+
+                # Format duration
+                hours, remainder = divmod(int(duration_td.total_seconds()), 3600)
+                minutes = remainder // 60
+                duration_str = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
+
+                with col1:
+                    st.write(start_time)
+                with col2:
+                    if isinstance(block, TaskScheduleBlock) and block.is_completed():
+                        st.markdown(f"~~{task_name}~~")
+                    else:
+                        st.write(task_name)
+                with col3:
+                    st.write(duration_str)
+                with col4:
+                    st.write(pet_name)
+                with col5:
+                    # Only show toggle button for TaskScheduleBlocks
+                    if isinstance(block, TaskScheduleBlock):
+                        button_label = "✓ Complete" if block.is_completed() else "○ Mark Done"
+                        if st.button(button_label, key=f"block_{today_str}_{idx}"):
+                            if block.is_completed():
+                                block.unmark_completed()
+                            else:
+                                block.mark_completed()
+                            st.rerun()
+                    else:
+                        st.write("—")
+
+            # Check if all task blocks are completed
+            task_blocks = [b for b in schedule.get_blocks() if isinstance(b, TaskScheduleBlock)]
+            if task_blocks and all(b.is_completed() for b in task_blocks):
+                st.balloons()
+                st.success("🎉 Amazing! You've completed all today's pet care tasks!")
         else:
             st.info("No tasks scheduled for today")
 
