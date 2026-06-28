@@ -131,7 +131,7 @@ class MonthlyPattern(RecurrencePattern):
 
 
 class Task:
-    def __init__(self, name: str, duration: timedelta, priority: int, recurrence_pattern: RecurrencePattern, time_of_day: TimeOfDay, pet: Optional['Pet'] = None):
+    def __init__(self, name: str, duration: timedelta, priority: int, recurrence_pattern: RecurrencePattern, time_of_day: TimeOfDay, pet: Optional['Pet'] = None, uuid: Optional[str] = None):
         """Initialize task with name, duration, priority, recurrence, and preferred time of day."""
         if duration <= timedelta(0):
             raise ValueError("Task duration must be greater than zero")
@@ -142,6 +142,7 @@ class Task:
         self._time_of_day = time_of_day
         self._pet = pet
         self._preceding_tasks: List[Task] = []
+        self._uuid = uuid if uuid is not None else uuid4().hex
 
     def get_name(self) -> str:
         """Return task name."""
@@ -485,6 +486,49 @@ class Scheduler:
             datetime.combine(target_date, owner.get_available_hours_start())
         )
 
+    def _retry_unfit_tasks(
+        self,
+        schedule: Schedule,
+        unfit_tasks: List[tuple[Task, Pet]],
+        current_datetime: datetime,
+        next_period_start: datetime,
+        scheduled_tasks: set[tuple[Task, Pet]],
+        owner_end_datetime: datetime,
+    ) -> datetime:
+        """Retry tasks that couldn't be scheduled, returning updated current time."""
+        while unfit_tasks:
+            scheduled_in_pass = False
+            remaining_unfit = []
+            for task, pet in unfit_tasks:
+                if current_datetime >= next_period_start:
+                    remaining_unfit.append((task, pet))
+                    continue
+
+                preceding_scheduled = all(
+                    (pt, pt.get_pet()) in scheduled_tasks
+                    for pt in task.get_preceding_tasks()
+                )
+                if not preceding_scheduled:
+                    remaining_unfit.append((task, pet))
+                    continue
+
+                task_end_datetime = current_datetime + task.get_duration()
+                if task_end_datetime > owner_end_datetime:
+                    remaining_unfit.append((task, pet))
+                    continue
+
+                block = TaskScheduleBlock(current_datetime, task)
+                schedule.add_block(block)
+                scheduled_tasks.add((task, pet))
+                current_datetime = task_end_datetime
+                scheduled_in_pass = True
+
+            unfit_tasks = remaining_unfit
+            if not scheduled_in_pass:
+                break
+
+        return current_datetime
+
     def _schedule_time_period(
         self,
         schedule: Schedule,
@@ -507,6 +551,7 @@ class Scheduler:
         else:
             next_period_start = datetime.combine(target_date, time(23, 59))
 
+        unfit_tasks = []
         for task, pet in tasks:
             if current_datetime >= next_period_start:
                 break
@@ -516,16 +561,23 @@ class Scheduler:
                 for pt in task.get_preceding_tasks()
             )
             if not preceding_scheduled:
+                unfit_tasks.append((task, pet))
                 continue
 
             task_end_datetime = current_datetime + task.get_duration()
             if task_end_datetime > owner_end_datetime:
+                unfit_tasks.append((task, pet))
                 continue
 
             block = TaskScheduleBlock(current_datetime, task)
             schedule.add_block(block)
             scheduled_tasks.add((task, pet))
             current_datetime = task_end_datetime
+
+        if unfit_tasks:
+            current_datetime = self._retry_unfit_tasks(
+                schedule, unfit_tasks, current_datetime, next_period_start, scheduled_tasks, owner_end_datetime
+            )
 
         return current_datetime
 
