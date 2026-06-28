@@ -21,10 +21,19 @@ classDiagram
         SMALL_MAMMAL = 3
     }
 
+    class TimeOfDay {
+        <<enumeration>>
+        MORNING = 0
+        MIDDAY = 1
+        EVENING = 2
+        NIGHT = 3
+    }
+
     %% Task and Scheduling
     class Task {
         +string name
         +datetime.timedelta duration
+        +TimeOfDay time_of_day
         +int priority
         
         +is_necessary_for_date(datetime.date): bool
@@ -81,10 +90,11 @@ classDiagram
 
     %% Relationships
     Owner "1" --> "*" Pet : owns
-    Pet --> PetClassification : has
+    Pet --> "1" PetClassification : has
     Pet "1" --> "*" Task : includes
     Task "1" --> "1" RecurrencePattern : follows
     Task "self" --> "*" Task : precedes
+    Task --> "1" TimeOfDay : has
     Owner "1" --> "*" Schedule : has
     Owner --> OwnerScheduleBlock : blocks
     Owner --> OwnerScheduleBlock : prefers
