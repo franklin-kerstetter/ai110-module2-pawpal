@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from datetime import time, timedelta, date, datetime
 from enum import Enum
 from typing import List, Dict, Optional
+from uuid import uuid4
 
 
 class PetClassification(Enum):
@@ -148,12 +149,13 @@ class Task:
 
 
 class Pet:
-    def __init__(self, name: str, classification: PetClassification, age: int = 0, birthday: Optional[date] = None):
+    def __init__(self, name: str, classification: PetClassification, age: int = 0, birthday: Optional[date] = None, _uuid: str = uuid4().hex):
         self._name = name
         self._classification = classification
         self._age = age
         self._birthday = birthday if birthday is not None else date.today()
         self._tasks: List[Task] = []
+        self._uuid = _uuid
 
     def get_name(self) -> str:
         return self._name
@@ -178,6 +180,9 @@ class Pet:
 
     def set_birthday(self, birthday: date) -> None:
         self._birthday = birthday
+
+    def get_uuid(self) -> str:
+        return self._uuid
 
     def get_tasks(self) -> List[Task]:
         return self._tasks
@@ -317,11 +322,11 @@ class Scheduler:
                 if task.is_necessary_for_date(target_date):
                     tasks_by_time_of_day[task.get_time_of_day()].append((task, pet))
 
-        # Sort tasks within each time of day group by priority (higher first)
-        # and by pet age (older pets first) as a tiebreaker
+        # Sort tasks within each time of day group by priority (higher first),
+        # pet age (older first), then pet UUID as tiebreaker
         for time_of_day in TimeOfDay:
             tasks_by_time_of_day[time_of_day].sort(
-                key=lambda x: (x[0].get_priority(), x[1].get_age()),
+                key=lambda x: (x[0].get_priority(), x[1].get_age(), x[1].get_uuid()),
                 reverse=True
             )
 
