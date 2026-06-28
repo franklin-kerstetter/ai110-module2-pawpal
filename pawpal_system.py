@@ -207,6 +207,7 @@ class ScheduleBlock(ABC):
     def __init__(self, start_time: datetime, comment: str = ""):
         self._start_time = start_time
         self._comment = comment
+        self._completed = False
 
     def get_start_time(self) -> datetime:
         return self._start_time
@@ -224,9 +225,11 @@ class ScheduleBlock(ABC):
     def get_timedelta(self) -> timedelta:
         pass
 
-    @abstractmethod
     def is_completed(self) -> bool:
-        pass
+        return self._completed
+
+    def set_completed(self, completed: bool) -> None:
+        self._completed = completed
 
 
 class OwnerScheduleBlock(ScheduleBlock):
@@ -243,8 +246,6 @@ class OwnerScheduleBlock(ScheduleBlock):
     def get_timedelta(self) -> timedelta:
         return self._duration
 
-    def is_completed(self) -> bool:
-        pass
 
     def __str__(self) -> str:
         start_time = self._start_time.strftime("%I:%M %p")
@@ -255,10 +256,9 @@ class OwnerScheduleBlock(ScheduleBlock):
 
 
 class TaskScheduleBlock(ScheduleBlock):
-    def __init__(self, start_time: datetime, task: Task, completed: bool = False, comment: str = ""):
+    def __init__(self, start_time: datetime, task: Task, comment: str = ""):
         super().__init__(start_time, comment)
         self._task = task
-        self._completed = completed
 
     def get_task(self) -> Task:
         return self._task
@@ -266,17 +266,9 @@ class TaskScheduleBlock(ScheduleBlock):
     def set_task(self, task: Task) -> None:
         self._task = task
 
-    def get_completed(self) -> bool:
-        return self._completed
-
-    def set_completed(self, completed: bool) -> None:
-        self._completed = completed
-
     def get_timedelta(self) -> timedelta:
         return self._task.get_duration()
 
-    def is_completed(self) -> bool:
-        return self._completed
 
     def __str__(self) -> str:
         task_name = self._task.get_name()
