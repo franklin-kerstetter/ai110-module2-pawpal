@@ -1,15 +1,109 @@
 classDiagram
-    %% Replace the placeholders below with your actual classes, attributes, methods, and relationships.
-    %% Keep this file updated so it matches your final implementation.
-
-    class ClassName {
-        +type attribute
-        +method() returnType
+    %% Owner and Pet Management
+    class Owner {
+        +string name
+        +datetime.time available_hours_start
+        +datetime.time available_hours_end
     }
 
-    class AnotherClass {
-        +type attribute
-        +method() returnType
+    class Pet {
+        +string name
+        +PetClassification classification
+
+        +get_prioritized_tasks_for_date(datetime.date): Task[]
     }
 
-    ClassName --> AnotherClass : relationship
+    class PetClassification {
+        <<enumeration>>
+        DOG = 0
+        CAT = 1
+        BIRD = 2
+        SMALL_MAMMAL = 3
+    }
+
+    class TimeOfDay {
+        <<enumeration>>
+        MORNING = 0
+        MIDDAY = 1
+        EVENING = 2
+        NIGHT = 3
+    }
+
+    %% Task and Scheduling
+    class Task {
+        +string name
+        +datetime.timedelta duration
+        +TimeOfDay time_of_day
+        +int priority
+        
+        +is_necessary_for_date(datetime.date): bool
+    }
+
+    class RecurrencePattern {
+        <<abstract>>
+    }
+
+    class DailyPattern {
+    }
+
+    class WeeklyPattern {
+        +int[] days
+    }
+
+    class MonthlyPattern {
+        +int[] day_of_month
+    }
+
+    %% Schedule and Schedule Blocks
+    class Schedule {
+        +Date date
+        +string explanation
+    }
+
+    class ScheduleBlock {
+        <<abstract>>
+
+        +datetime.time start_time
+        +string comment
+
+        +get_timedelta(): datetime.timedelta
+        +is_completed(): bool
+    }
+
+    class OwnerScheduleBlock {
+        + datetime.timedelta duration
+
+        +get_timedelta(): datetime.timedelta
+        +is_completed(): bool
+    }
+
+    class TaskScheduleBlock {
+        +bool completed
+
+        +get_timedelta(): datetime.timedelta
+        +is_completed(): bool
+    }
+
+    class Scheduler {
+        +generate_schedule(Owner, datetime.date): Schedule
+    }
+
+    %% Relationships
+    Owner "1" --> "*" Pet : owns
+    Pet --> "1" PetClassification : has
+    Pet "1" --> "*" Task : includes
+    Task "1" --> "1" RecurrencePattern : follows
+    Task "self" --> "*" Task : precedes
+    Task --> "1" TimeOfDay : has
+    Owner "1" --> "*" Schedule : has
+    Owner --> OwnerScheduleBlock : blocks
+    Owner --> OwnerScheduleBlock : prefers
+    Scheduler "1" --> "*" Schedule : generates
+    Schedule "1" --> "*" ScheduleBlock : contains
+    ScheduleBlock <|-- TaskScheduleBlock : inherits
+    ScheduleBlock <|-- OwnerScheduleBlock : inherits
+    TaskScheduleBlock --> Task : represents
+
+    RecurrencePattern <|-- DailyPattern : specializes
+    RecurrencePattern <|-- WeeklyPattern : specializes
+    RecurrencePattern <|-- MonthlyPattern : specializes

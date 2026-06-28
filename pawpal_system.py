@@ -488,6 +488,25 @@ class Scheduler:
         """Return schedule blocks filtered by completion status."""
         return [block for block in blocks if block.is_completed() == completed]
 
+    def _blocks_overlap(self, block1: TaskScheduleBlock, block2: TaskScheduleBlock) -> bool:
+        """Return True if two blocks overlap in time."""
+        end1 = block1.get_start_time() + block1.get_timedelta()
+        end2 = block2.get_start_time() + block2.get_timedelta()
+        return block1.get_start_time() < end2 and block2.get_start_time() < end1
+
+    def _generate_conflict_warning(self, block1: TaskScheduleBlock, block2: TaskScheduleBlock) -> str:
+        """Generate conflict warning message for two overlapping blocks."""
+        task1 = block1.get_task()
+        task2 = block2.get_task()
+        pet1 = task1.get_pet()
+        pet2 = task2.get_pet()
+
+        pet1_name = pet1.get_name() if pet1 else "Unknown"
+        pet2_name = pet2.get_name() if pet2 else "Unknown"
+
+        conflict_type = "same pet" if pet1 == pet2 else "different pets"
+        return f"Conflict: '{task1.get_name()}' ({pet1_name}) and '{task2.get_name()}' ({pet2_name}) overlap [{conflict_type}]"
+
     def detect_schedule_conflicts(self, schedule: Schedule) -> List[str]:
         """Detect task scheduling conflicts and return list of warning messages."""
         warnings = []
@@ -496,37 +515,29 @@ class Scheduler:
 
         for i, block1 in enumerate(task_blocks):
             for block2 in task_blocks[i + 1:]:
-                end_time1 = block1.get_start_time() + block1.get_timedelta()
-                end_time2 = block2.get_start_time() + block2.get_timedelta()
-
-                if block1.get_start_time() < end_time2 and block2.get_start_time() < end_time1:
-                    task1 = block1.get_task()
-                    task2 = block2.get_task()
-                    pet1 = task1.get_pet()
-                    pet2 = task2.get_pet()
-
-                    pet1_name = pet1.get_name() if pet1 else "Unknown"
-                    pet2_name = pet2.get_name() if pet2 else "Unknown"
-
-                    conflict_type = "same pet" if pet1 == pet2 else "different pets"
-                    warning = f"Conflict: '{task1.get_name()}' ({pet1_name}) and '{task2.get_name()}' ({pet2_name}) overlap [{conflict_type}]"
-                    warnings.append(warning)
+                if self._blocks_overlap(block1, block2):
+                    warnings.append(self._generate_conflict_warning(block1, block2))
 
         return warnings
 
     def get_task_pet_tuples_by_time_of_day_for_owner(self, owner: Owner, target_date: date) -> Dict[TimeOfDay, List[tuple[Task, Pet]]]:
-        """Return owner's tasks grouped by time of day and sorted by priority for target date."""
-        # Collect all applicable tasks from each pet
+        """Return owner's tasks grouped by time of day and sorted by priority for target date.
+
+        Filters tasks that apply to target_date, sorts by time of day then priority,
+        and groups into bins for MORNING, MIDDAY, EVENING, NIGHT. Each group maintains
+        sort order (higher priority first, older pets first, stable UUID tiebreak).
+        """
+        # Collect all tasks from all pets that apply to this date
         all_tasks: List[tuple[Task, Pet]] = []
         for pet in owner.get_pets():
             for task in pet.get_tasks():
                 if task.is_necessary_for_date(target_date):
                     all_tasks.append((task, pet))
 
-        # Sort once by time of day, priority (higher first), pet age (older first), then UUID
+        # Sort once by: time of day, priority (higher=more urgent), pet age (older=higher), UUID
         all_tasks = self.sort_task_pet_tuples_by_time(all_tasks)
 
-        # Group by time of day (already sorted within each group)
+        # Group sorted tasks by time of day; each group maintains internal sort order
         tasks_by_time_of_day: Dict[TimeOfDay, List[tuple[Task, Pet]]] = {
             time_of_day: [] for time_of_day in TimeOfDay
         }
@@ -536,7 +547,10 @@ class Scheduler:
         return tasks_by_time_of_day
 
     def _calculate_schedule_start_datetime(self, owner: Owner, target_date: date) -> datetime:
-        """Calculate schedule start time as max of morning time and owner availability start."""
+        """Return earliest time scheduling can begin: whichever is later, 5am or owner's availability start.
+
+        Ensures schedules never start before morning (5am) or before owner is available.
+        """
         return max(
             datetime.combine(target_date, self._TIME_OF_DAY_TIMES[TimeOfDay.MORNING]),
             datetime.combine(target_date, owner.get_available_hours_start())
@@ -551,15 +565,24 @@ class Scheduler:
         scheduled_tasks: set[tuple[Task, Pet]],
         owner_end_datetime: datetime,
     ) -> datetime:
-        """Retry tasks that couldn't be scheduled, returning updated current time."""
+        """Attempt to schedule tasks that didn't fit in their preferred time period.
+
+        Loops until no progress is made (no tasks scheduled in a pass) or all tasks fit.
+        For each unfit task, checks: still before next period? all preceding tasks done?
+        fits before owner availability ends? If all pass, schedules it and advances time.
+        Tasks that can't be scheduled yet remain for next pass (e.g., waiting on dependencies).
+        Returns updated current_datetime.
+        """
         while unfit_tasks:
             scheduled_in_pass = False
             remaining_unfit = []
             for task, pet in unfit_tasks:
+                # Stop trying tasks after next period starts
                 if current_datetime >= next_period_start:
                     remaining_unfit.append((task, pet))
                     continue
 
+                # Check all preceding tasks are already scheduled (dependency satisfied)
                 preceding_scheduled = all(
                     (pt, pt.get_pet()) in scheduled_tasks
                     for pt in task.get_preceding_tasks()
@@ -568,11 +591,13 @@ class Scheduler:
                     remaining_unfit.append((task, pet))
                     continue
 
+                # Check task fits before owner's day ends
                 task_end_datetime = current_datetime + task.get_duration()
                 if task_end_datetime > owner_end_datetime:
                     remaining_unfit.append((task, pet))
                     continue
 
+                # Task can be scheduled now
                 block = TaskScheduleBlock(current_datetime, task)
                 schedule.add_block(block)
                 scheduled_tasks.add((task, pet))
@@ -580,6 +605,7 @@ class Scheduler:
                 scheduled_in_pass = True
 
             unfit_tasks = remaining_unfit
+            # No progress this pass means remaining tasks are blocked (dependencies, time overflow)
             if not scheduled_in_pass:
                 break
 
@@ -596,22 +622,33 @@ class Scheduler:
         scheduled_tasks: set[tuple[Task, Pet]],
         owner_end_datetime: datetime,
     ) -> datetime:
-        """Schedule tasks for a specific time period, returning updated current time."""
+        """Schedule all tasks for a single time period (MORNING/MIDDAY/EVENING/NIGHT).
+
+        First pass: schedule tasks in order if dependencies met, duration fits, and we're
+        before the next period starts. Tasks that don't fit go to unfit_tasks.
+        Second pass: retry unfit tasks in case dependencies resolved or time freed up.
+        Returns updated current_datetime (next available slot).
+        """
         period_start_datetime = datetime.combine(target_date, self._TIME_OF_DAY_TIMES[time_period])
 
+        # Advance to period start if we're still before it
         if current_datetime < period_start_datetime:
             current_datetime = period_start_datetime
 
+        # Calculate when this period ends (next period start, or 23:59 if last period)
         if period_index < len(self._TIME_PERIODS) - 1:
             next_period_start = datetime.combine(target_date, self._TIME_OF_DAY_TIMES[self._TIME_PERIODS[period_index + 1]])
         else:
             next_period_start = datetime.combine(target_date, time(23, 59))
 
+        # Try to schedule each task in order
         unfit_tasks = []
         for task, pet in tasks:
+            # Stop processing if we've moved into the next period
             if current_datetime >= next_period_start:
                 break
 
+            # Check all preceding tasks are already scheduled
             preceding_scheduled = all(
                 (pt, pt.get_pet()) in scheduled_tasks
                 for pt in task.get_preceding_tasks()
@@ -620,16 +657,19 @@ class Scheduler:
                 unfit_tasks.append((task, pet))
                 continue
 
+            # Check task fits before owner's day ends
             task_end_datetime = current_datetime + task.get_duration()
             if task_end_datetime > owner_end_datetime:
                 unfit_tasks.append((task, pet))
                 continue
 
+            # Task fits; schedule it
             block = TaskScheduleBlock(current_datetime, task)
             schedule.add_block(block)
             scheduled_tasks.add((task, pet))
             current_datetime = task_end_datetime
 
+        # Retry unfit tasks now that some time may have freed up
         if unfit_tasks:
             current_datetime = self._retry_unfit_tasks(
                 schedule, unfit_tasks, current_datetime, next_period_start, scheduled_tasks, owner_end_datetime
@@ -642,13 +682,19 @@ class Scheduler:
         applicable_tasks: set[tuple[Task, Pet]],
         scheduled_tasks: set[tuple[Task, Pet]],
     ) -> str:
-        """Generate explanation text describing scheduled and missing tasks."""
+        """Generate summary text for schedule: count of scheduled tasks and list of missing ones.
+
+        If all tasks fit, returns "All tasks scheduled." Otherwise lists unscheduled tasks
+        grouped by time of day (MORNING, MIDDAY, etc.) with reason count (e.g., "Scheduled 8/10
+        tasks. Missing: MORNING: Feed Fluffy, Refill water; EVENING: Evening walk (Buddy)").
+        """
         missing_tasks = applicable_tasks - scheduled_tasks
 
         if missing_tasks:
             scheduled_count = len(scheduled_tasks)
             total_count = len(applicable_tasks)
 
+            # Group missing tasks by their preferred time of day for readability
             missing_by_time = {}
             for task, pet in missing_tasks:
                 time_of_day = task.get_time_of_day().name
@@ -656,6 +702,7 @@ class Scheduler:
                     missing_by_time[time_of_day] = []
                 missing_by_time[time_of_day].append(f"{task.get_name()} ({pet.get_name()})")
 
+            # Format as "TIME_OF_DAY: task1, task2; ANOTHER_TIME: task3, ..."
             missing_details = "; ".join(
                 f"{time_of_day}: {', '.join(tasks)}"
                 for time_of_day, tasks in missing_by_time.items()
@@ -665,27 +712,46 @@ class Scheduler:
             return "All tasks scheduled."
 
     def generate_schedule(self, owner: Owner, target_date: date) -> Schedule:
-        """Generate complete schedule for owner on target date."""
+        """Generate complete pet care schedule for owner on target_date.
+
+        Process:
+        1. Collect all tasks that apply on target_date from all owner's pets
+        2. Filter and group by preferred time of day (MORNING → NIGHT), sorted by priority
+        3. Schedule tasks in order, respecting owner availability window and task dependencies
+        4. Track which tasks fit; generate summary explanation (all scheduled vs. missing ones)
+        5. Add schedule to owner's record and return it
+
+        Tasks that don't fit in their time period are retried later as time becomes available.
+        Returns Schedule with all blocks added and explanation of what was/wasn't scheduled.
+        """
         schedule = Schedule(target_date)
 
+        # Get all applicable tasks grouped and sorted by time of day
         tasks_by_time = self.get_task_pet_tuples_by_time_of_day_for_owner(owner, target_date)
 
+        # Track which tasks apply today (union of all time-of-day buckets)
         applicable_tasks: set[tuple[Task, Pet]] = set()
         for task_list in tasks_by_time.values():
             applicable_tasks.update(task_list)
 
+        # Track successfully scheduled tasks (for explanation and dependency checking)
         scheduled_tasks: set[tuple[Task, Pet]] = set()
+
+        # Determine when schedule can start (not before 5am, not before owner available)
         current_datetime = self._calculate_schedule_start_datetime(owner, target_date)
         owner_end_datetime = datetime.combine(target_date, owner.get_available_hours_end())
 
+        # Schedule each time period in order (MORNING → MIDDAY → EVENING → NIGHT)
         for i, time_period in enumerate(self._TIME_PERIODS):
             tasks = tasks_by_time[time_period]
             current_datetime = self._schedule_time_period(
                 schedule, time_period, i, tasks, current_datetime, target_date, scheduled_tasks, owner_end_datetime
             )
 
+        # Generate summary: "Scheduled 8/10 tasks. Missing: ..." or "All tasks scheduled."
         explanation = self._generate_schedule_explanation(applicable_tasks, scheduled_tasks)
         schedule.set_explanation(explanation)
 
+        # Save schedule in owner's history
         owner.add_schedule(schedule)
         return schedule

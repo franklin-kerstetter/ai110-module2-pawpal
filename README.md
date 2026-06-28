@@ -214,12 +214,16 @@ Sample test output:
 
 > Fill in once you've implemented scheduling logic.
 
+The various one-off methods the instructions ask for are listed below.
+My implementation doesn't necessarily leverage them for the schedule generation.
+All of the schedule generation logic around this is handled within the core [generate_schedule](./pawpal_system.py#673) method where [_schedule_time_period](./pawpal_system.py#594) deals with sorting, conflicts, etc.
+
 | Feature | Method(s) | Notes |
 |---------|-----------|-------|
-| Task sorting | | e.g., by priority, duration |
-| Filtering | | e.g., skip tasks if time runs out |
-| Conflict handling | | e.g., overlapping time slots |
-| Recurring tasks | | e.g., daily vs. weekly |
+| Task sorting | [sort_task_pet_tuples_by_time](./pawpal_system.py#474), [sort_by_time](./pawpal_system.py#478) | Sorts tasks by time of day, priority, associated pet age, and then pet uuid |
+| Filtering | [filter_tasks_by_pet_name](./pawpal_system.py#483), [filter_blocks_by_completion_status](./pawpal_system.py#487) | offers various filter capabilities|
+| Conflict handling | [detect_schedule_conflicts](./pawpal_system.py#510) | creates a list of warnings for overlapping blocks |
+| Recurring tasks | [RecurrencePattern Class](./pawpal_system.py#76) | abstract patterns which offer daily, weekly, and monthly patterns|
 
 ## 📸 Demo Walkthrough
 
